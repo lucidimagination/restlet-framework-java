@@ -30,13 +30,17 @@
 
 package org.restlet.ext.jackson;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 
 import org.restlet.data.MediaType;
 import org.restlet.data.Preference;
 import org.restlet.engine.converter.ConverterHelper;
+import org.restlet.engine.io.BioUtils;
 import org.restlet.engine.resource.VariantInfo;
+import org.restlet.representation.OutputRepresentation;
 import org.restlet.representation.Representation;
 import org.restlet.representation.Variant;
 import org.restlet.resource.UniformResource;
@@ -174,6 +178,7 @@ public class JacksonConverter extends ConverterHelper {
 
         if (source instanceof JacksonRepresentation) {
             result = (JacksonRepresentation<?>) source;
+            result = calcSize(source, (JacksonRepresentation<?>) result);
         } else {
             if (target.getMediaType() == null) {
                 target.setMediaType(MediaType.APPLICATION_JSON);
@@ -183,11 +188,36 @@ public class JacksonConverter extends ConverterHelper {
                 JacksonRepresentation<Object> jacksonRepresentation = create(
                         target.getMediaType(), source);
                 result = jacksonRepresentation;
+                result = calcSize(source, (JacksonRepresentation<?>) result);
             }
         }
-
         return result;
     }
+
+	private Representation calcSize(Object result, final JacksonRepresentation<?> jacksonSource) {
+		Representation rep = null;
+	    if (jacksonSource.getSize() == Representation.UNKNOWN_SIZE) {
+	      try {
+	        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+	
+	        BioUtils.copy(jacksonSource.getStream(), os);
+	        rep = new OutputRepresentation(
+	                jacksonSource.getMediaType()) {
+	          @Override
+	          public void write(OutputStream outputStream) throws IOException {
+	
+	            outputStream.write(os.toByteArray());
+	          }
+	        };
+	        rep.setSize(os.size());
+	        result = rep;
+	      } catch (IOException e) {
+	        e.printStackTrace();
+	
+	      }
+	    }
+	   return rep;
+	}
 
     @Override
     public <T> void updatePreferences(List<Preference<MediaType>> preferences,
